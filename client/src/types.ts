@@ -1,0 +1,52 @@
+// client/src/types.ts
+
+export type Player = 'X' | 'O';
+
+export interface GameState {
+  board: (Player | null)[];
+  currentPlayer: Player;
+  moveHistoryX: number[];
+  moveHistoryO: number[];
+  winner: Player | null;
+}
+
+export interface Chat {
+  id: string;
+  sender: Player;
+  message: string;
+  timestamp: Date;
+}
+
+export interface Room {
+  id: string;
+  gameState: GameState;
+  chat: Chat[];
+  players: {
+    X: { id: string; name: string } | null;
+    O: { id: string; name: string } | null;
+  };
+  spectators: string[];
+}
+
+export interface CreateRoomResponse {
+  success: boolean;
+  roomId: string;
+  playerRole: Player;
+  room: Room;
+  error?: string;
+}
+
+export interface JoinRoomResponse {
+  success: boolean;
+  roomId?: string;
+  playerRole?: Player | null;
+  room?: Room;
+  isSpectator?: boolean;
+  error?: string;
+}
+
+export interface MakeMoveResponse {
+  success: boolean;
+  gameState?: GameState;
+  error?: string;
+}

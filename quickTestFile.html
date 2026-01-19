@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.io Test Client</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            gap: 5px;
+            margin: 20px 0;
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            font-weight: bold;
+            cursor: pointer;
+            background: white;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+        .cell:hover {
+            background: #f0f0f0;
+        }
+        .cell.disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        .cell.oldest {
+            background: #ffebee;
+            border-color: #f44336;
+            color: #c62828;
+        }
+        .log {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .log-entry.success {
+            color: green;
+        }
+        .log-entry.error {
+            color: red;
+        }
+        .log-entry.info {
+            color: blue;
+        }
+        .chat {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .chat-message {
+            margin: 5px 0;
+            padding: 5px;
+        }
+        .status {
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .game-info {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .info-box {
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Socket.io Tic-Tac-Toe Test Client</h1>
+    
+    <div class="container">
+        <h2>Connection</h2>
+        <input type="text" id="serverUrl" value="http://localhost:3000" placeholder="Server URL">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+        <div class="status" id="connectionStatus">Not connected</div>
+    </div>
+
+    <div class="container">
+        <h2>Room Management</h2>
+        <input type="text" id="playerName" placeholder="Your name">
+        <button onclick="createRoom()">Create Room</button>
+        <br>
+        <input type="text" id="roomId" placeholder="Room ID">
+        <button onclick="joinRoom()">Join Room</button>
+        <div class="status" id="roomStatus">Not in a room</div>
+    </div>
+
+    <div class="container">
+        <h2>Game Board</h2>
+        <div class="game-info">
+            <div class="info-box">
+                <strong>Your Role:</strong> <span id="playerRole">-</span>
+            </div>
+            <div class="info-box">
+                <strong>Current Turn:</strong> <span id="currentTurn">-</span>
+            </div>
+            <div class="info-box">
+                <strong>Player X:</strong> <span id="playerX">-</span>
+            </div>
+            <div class="info-box">
+                <strong>Player O:</strong> <span id="playerO">-</span>
+            </div>
+        </div>
+        <div class="board" id="board"></div>
+        <button onclick="resetGame()">Reset Game</button>
+        <div class="status" id="gameStatus">-</div>
+    </div>
+
+    <div class="container">
+        <h2>Chat</h2>
+        <div class="chat" id="chatBox"></div>
+        <input type="text" id="chatInput" placeholder="Type a message..." onkeypress="handleChatKeypress(event)">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <div class="container">
+        <h2>Event Log</h2>
+        <button onclick="clearLog()">Clear Log</button>
+        <div class="log" id="eventLog"></div>
+    </div>
+
+    <script>
+        let socket = null;
+        let currentRoomId = null;
+        let myPlayerRole = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('eventLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        function updateStatus(elementId, text) {
+            document.getElementById(elementId).textContent = text;
+        }
+
+        function connect() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            socket = io(serverUrl);
+
+            socket.on('connect', () => {
+                log('Connected to server', 'success');
+                updateStatus('connectionStatus', `Connected (${socket.id})`);
+            });
+
+            socket.on('disconnect', () => {
+                log('Disconnected from server', 'error');
+                updateStatus('connectionStatus', 'Not connected');
+            });
+
+            socket.on('gameStart', (room) => {
+                log('Game started!', 'success');
+                updateGameBoard(room.gameState);
+                updatePlayers(room.players);
+            });
+
+            socket.on('gameStateUpdate', (gameState) => {
+                log('Game state updated', 'info');
+                updateGameBoard(gameState);
+            });
+
+            socket.on('gameEnd', (gameState) => {
+                log(`Game ended: ${getGameStatusText(gameState)}`, 'success');
+                updateGameBoard(gameState);
+            });
+
+            socket.on('chatMessage', (chat) => {
+                addChatMessage(chat.message);
+            });
+
+            socket.on('playerLeft', (data) => {
+                log(`Player ${data.player} left the room`, 'info');
+            });
+
+            socket.on('spectatorJoined', (data) => {
+                log(`${data.name} joined as spectator`, 'info');
+            });
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+        }
+
+        function createRoom() {
+            const playerName = document.getElementById('playerName').value;
+            if (!playerName) {
+                alert('Please enter your name');
+                return;
+            }
+
+            if (!socket || !socket.connected) {
+                log('Not connected to server', 'error');
+                return;
+            }
+
+            log('Creating room...', 'info');
+
+            socket.emit('createRoom', playerName, (response) => {
+                log(`Callback received: ${JSON.stringify(response)}`, 'info');
+                
+                if (!response) {
+                    log('Failed to create room: No response from server', 'error');
+                    return;
+                }
+                
+                if (response.success) {
+                    currentRoomId = response.roomId;
+                    myPlayerRole = response.playerRole;
+                    log(`Room created: ${response.roomId}`, 'success');
+                    updateStatus('roomStatus', `Room: ${response.roomId} (You are ${response.playerRole})`);
+                    updateStatus('playerRole', response.playerRole);
+                    updatePlayers(response.room.players);
+                    initBoard();
+                } else {
+                    log(`Failed to create room: ${response.error || 'Unknown error'}`, 'error');
+                }
+            });
+        }
+
+        function joinRoom() {
+            const playerName = document.getElementById('playerName').value;
+            const roomId = document.getElementById('roomId').value;
+            
+            if (!playerName || !roomId) {
+                alert('Please enter your name and room ID');
+                return;
+            }
+
+            if (!socket || !socket.connected) {
+                log('Not connected to server', 'error');
+                return;
+            }
+
+            log('Joining room...', 'info');
+
+            socket.emit('joinRoom', roomId, playerName, (response) => {
+                log(`Callback received: ${JSON.stringify(response)}`, 'info');
+                
+                if (!response) {
+                    log('Failed to join room: No response from server', 'error');
+                    return;
+                }
+                
+                if (response.success) {
+                    currentRoomId = response.roomId;
+                    myPlayerRole = response.playerRole;
+                    log(`Joined room: ${response.roomId}`, 'success');
+                    updateStatus('roomStatus', `Room: ${response.roomId} (You are ${response.playerRole || 'Spectator'})`);
+                    updateStatus('playerRole', response.playerRole || 'Spectator');
+                    updatePlayers(response.room.players);
+                    updateGameBoard(response.room.gameState);
+                } else {
+                    log(`Failed to join room: ${response.error || 'Unknown error'}`, 'error');
+                }
+            });
+        }
+
+        function initBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.index = i;
+                cell.onclick = () => makeMove(i);
+                board.appendChild(cell);
+            }
+        }
+
+        function updateGameBoard(gameState) {
+            const board = document.getElementById('board');
+            if (board.children.length === 0) initBoard();
+
+            // Get oldest piece positions for each player
+            const oldestX = gameState.moveHistoryX.length >= 3 ? gameState.moveHistoryX[0] : null;
+            const oldestO = gameState.moveHistoryO.length >= 3 ? gameState.moveHistoryO[0] : null;
+
+            console.log('Move history X:', gameState.moveHistoryX);
+            console.log('Move history O:', gameState.moveHistoryO);
+            console.log('Oldest X position:', oldestX);
+            console.log('Oldest O position:', oldestO);
+
+            for (let i = 0; i < 9; i++) {
+                const cell = board.children[i];
+                cell.textContent = gameState.board[i] || '';
+                cell.className = 'cell';
+                
+                // Highlight oldest piece that will be removed next
+                if (i === oldestX && gameState.board[i] === 'X') {
+                    cell.classList.add('oldest');
+                    console.log('Highlighting X at position', i);
+                } else if (i === oldestO && gameState.board[i] === 'O') {
+                    cell.classList.add('oldest');
+                    console.log('Highlighting O at position', i);
+                }
+                
+                if (gameState.board[i] || gameState.winner) {
+                    cell.classList.add('disabled');
+                }
+            }
+
+            updateStatus('currentTurn', gameState.currentPlayer);
+            updateStatus('gameStatus', getGameStatusText(gameState));
+        }
+
+        function updatePlayers(players) {
+            updateStatus('playerX', players.X?.name || 'Waiting...');
+            updateStatus('playerO', players.O?.name || 'Waiting...');
+        }
+
+        function getGameStatusText(gameState) {
+            if (gameState.winner === 'Draw') return "It's a draw!";
+            if (gameState.winner) return `Player ${gameState.winner} wins!`;
+            return `Player ${gameState.currentPlayer}'s turn`;
+        }
+
+        function makeMove(position) {
+            if (!currentRoomId || !myPlayerRole) {
+                log('You must join a room first', 'error');
+                return;
+            }
+
+            socket.emit('makeMove', currentRoomId, position, (response) => {
+                if (response.success) {
+                    log(`Move made at position ${position}`, 'success');
+                } else {
+                    log(`Move failed: ${response.error}`, 'error');
+                }
+            });
+        }
+
+        function resetGame() {
+            if (!currentRoomId) {
+                log('You must join a room first', 'error');
+                return;
+            }
+
+            socket.emit('resetGame', currentRoomId);
+            log('Game reset requested', 'info');
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message || !currentRoomId) return;
+
+            socket.emit('sendMessage', currentRoomId, message);
+            input.value = '';
+        }
+
+        function handleChatKeypress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function addChatMessage(message) {
+            const chatBox = document.getElementById('chatBox');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-message';
+            msgDiv.textContent = message;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // Initialize empty board on load
+        window.onload = () => {
+            initBoard();
+        };
+    </script>
+</body>
+</html>

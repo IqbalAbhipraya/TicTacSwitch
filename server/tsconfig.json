@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "CommonJS",            // Easier for Node.js development
+    "rootDir": "./src",              // Where your source code lives
+    "outDir": "./dist",              // Where compiled code goes
+    "esModuleInterop": true,         // Allows standard imports for non-TS modules
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,                  // Keeps your types safe
+    "skipLibCheck": true,            // Speeds up compilation
+    "noUncheckedIndexedAccess": true // Good for board[index] safety
+  },
+  "include": ["src/**/*"]            // Only look inside the src folder
+}
