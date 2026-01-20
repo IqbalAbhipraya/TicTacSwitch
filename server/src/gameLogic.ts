@@ -26,18 +26,22 @@ export function createNewGame(): GameState {
         currentPlayer: 'X' as Player,
         moveHistoryX: [],
         moveHistoryO: [],
-        winner: null
+        winner: null,
+        winningLine: null
     };
 }
 
-export function checkWinner(board: (Player | null)[]): Player | null {
+export function checkWinner(board: (Player | null)[]): { winner: Player | null; winningLine: [number, number, number] | null } {
     for (const combination of GAME_WINNING_CONDITION) {
         const [a, b, c] = combination;
         if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-            return board[a] as Player;
+            return {
+                winner: board[a] as Player,
+                winningLine: [a, b, c]
+            };
         }
     }
-    return null;
+    return { winner: null, winningLine: null };
 }
 
 export function checkDraw(gameState: GameState): boolean {
@@ -90,16 +94,17 @@ export function makeMove(move: number, gameState: GameState, player: Player): Mo
 
     newBoard[move] = player;
 
-    const winner = checkWinner(newBoard);
+    const winResult = checkWinner(newBoard);
    
-    const isDraw = !winner && newBoard.every(cell => cell !== null);
+    const isDraw = !winResult.winner && newBoard.every(cell => cell !== null);
 
     const newGameState: GameState = {
         board: newBoard,
         currentPlayer: player === 'X' ? 'O' : 'X',
         moveHistoryX,
         moveHistoryO,
-        winner: winner || (isDraw ? 'Draw' : null)
+        winner: winResult.winner || (isDraw ? 'Draw' : null),
+        winningLine: winResult.winningLine
     };
 
     return {

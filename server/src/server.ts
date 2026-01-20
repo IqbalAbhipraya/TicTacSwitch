@@ -100,6 +100,7 @@ io.on('connection', (socket: Socket) => {
                 success: true,
                 playerRole: null,
                 roomId,
+                room,
                 isSpectator: true,
             });
 

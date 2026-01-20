@@ -8,6 +8,7 @@ export interface GameState {
   moveHistoryX: number[];
   moveHistoryO: number[];
   winner: Player | null;
+  winningLine: [number, number, number] | null;
 }
 
 export interface Chat {

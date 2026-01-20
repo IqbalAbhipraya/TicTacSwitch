@@ -1,13 +1,15 @@
-import type { Player } from '../types';
+import type { Player } from "../types";
+import {X, Circle} from "lucide-react"
 
 interface SquareProps {
     value: Player | null;
     onClick: () => void;
     isOldest: boolean;
     disabled: boolean;
+    isWinner: boolean;
 }
 
-export default function Square({ value, onClick, isOldest, disabled }: SquareProps) {
+export default function Square({ value, onClick, isOldest, disabled, isWinner }: SquareProps) {
     return (
         <button
             onClick={onClick}
@@ -15,23 +17,37 @@ export default function Square({ value, onClick, isOldest, disabled }: SquarePro
             className={`
                 aspect-square w-full
                 flex items-center justify-center
-                text-6xl font-bold
-                border-4 rounded-lg
-                transition-all duration-300
-                ${value === 'X' ? 'text-blue-600' : ''}
-                ${value === 'O' ? 'text-red-600' : ''}
-                ${isOldest 
-                    ? 'bg-red-100 border-red-500 animate-pulse' 
-                    : 'bg-white border-gray-800'
+                text-7xl font-bold
+                rounded-xl
+                transition-all duration-300 ease-out
+                backdrop-blur-sm
+                ${value === 'X' ? 'text-blue-400' : ''}
+                ${value === 'O' ? 'text-red-400' : ''}
+                ${isOldest ? 'opacity-40 animate-[pulse_1.5s_ease-in-out_infinite]' : ''}
+                ${!disabled && !value ? 
+                    'hover:scale-105 hover:bg-slate-200 cursor-pointer hover:shadow-xl' : 
+                    'cursor-not-allowed'
                 }
-                ${!disabled && !value 
-                    ? 'hover:bg-gray-100 hover:border-blue-500 cursor-pointer' 
-                    : ''
+                ${
+                    isWinner ? 'bg-green-400/40' :
+                    value ? 'bg-white/15 shadow-lg' :
+                    disabled && !value ? 'bg-gray-200' : 
+                    'bg-slate-200'
                 }
-                ${disabled ? 'cursor-not-allowed opacity-60' : ''}
             `}
+            style={{
+                border: isOldest 
+                    ? '2px solid rgba(234, 179, 8, 0.6)' 
+                    : '2px solid rgba(255, 255, 255, 0.1)',
+                textShadow: value === 'X' 
+                    ? '0 0 20px rgba(59, 130, 246, 0.8)' 
+                    : value === 'O' 
+                    ? '0 0 20px rgba(239, 68, 68, 0.8)' 
+                    : 'none',
+            }}
         >
-            {value}
+            {value === 'X' && <span className="animate-[fadeIn_0.3s_ease-in-out]"><X size={120} strokeWidth={3} /></span>}
+            {value === 'O' && <span className="animate-[fadeIn_0.3s_ease-in-out]"><Circle size={100} strokeWidth={3} /></span>}
         </button>
     );
 }
