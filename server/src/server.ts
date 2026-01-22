@@ -4,15 +4,19 @@ import { Server, Socket } from 'socket.io';
 import cors from 'cors';
 import { GameState, Player, Chat } from './type';
 import { createNewGame, makeMove, getGameStatus, resetGame, MoveResult } from './gameLogic'
-
+import 'dotenv/config';
 const app = express();
 const httpServer = createServer(app);
 
 app.use(cors());
 
+const PORT = process.env.PORT || 3000;
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+
 const io = new Server(httpServer, {
     cors: {
-        origin: "*",
+        //get from .env 
+        origin: CLIENT_URL,
         methods: ["GET", "POST"],
     },
 });
@@ -392,8 +396,6 @@ io.on('connection', (socket: Socket) => {
         })
     });
 });
-
-const PORT = process.env.PORT || 3000;
 
 httpServer.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
