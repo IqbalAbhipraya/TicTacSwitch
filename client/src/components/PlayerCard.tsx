@@ -1,4 +1,3 @@
-import Badge from "./Badge"
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card"
 import type { Room } from "../types"
 import { Crown } from "lucide-react"
@@ -10,10 +9,9 @@ interface PlayerCardProps {
 
 export const PlayerCard = ({ room, role }: PlayerCardProps) => {
 
-    const { moveHistoryX, moveHistoryO, currentPlayer, winner } = room.gameState;
+    const { currentPlayer, winner } = room.gameState;
 
     const name = role === 'X' ? room.players.X?.name || 'Waiting for Player...' : room.players.O?.name || 'Waiting for Player...';
-    const moves = role === 'X' ? moveHistoryX.length : moveHistoryO.length;
     const isMyTurn = role === currentPlayer;
 
     return (

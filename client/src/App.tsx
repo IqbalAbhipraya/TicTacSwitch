@@ -3,7 +3,7 @@ import './App.css';
 import { getSocket } from './socket';
 
 import Board from './components/Board';
-import Badge, { BadgeWithIndicator } from './components/Badge';
+import { BadgeWithIndicator } from './components/Badge';
 import { PlayerCard } from './components/PlayerCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Input } from './components/ui/input';
@@ -11,7 +11,6 @@ import { Button } from './components/ui/button';
 import { Label } from './components/ui/label';
 import { RefreshCw } from 'lucide-react';
 import ChatSection from './components/ChatSection';
-
 
 import type { Chat, CreateRoomResponse, GameState, JoinRoomResponse, MakeMoveResponse, Player, Room } from './types';
 
@@ -90,12 +89,10 @@ function App() {
     socket.on('roleSwitch', (room: Room) => {
       console.log('Roles switched!', room);
       
-      // Update game state and players
       setGameState(room.gameState);
       setPlayers(room.players);
       setChatMessages(room.chat);
       
-      // Update my role based on the new room state
       if (room.players.X?.id === socket.id) {
         setMyRole('X');
         setStatus(`Room ${roomId} - You are X`);
@@ -108,7 +105,6 @@ function App() {
     socket.on('becomePlayer', ({ room, role }: { room: Room; role: Player }) => {
       console.log('You became a player!', room, role);
       
-      // Update game state and players
       setGameState(room.gameState);
       setPlayers(room.players);
       setChatMessages(room.chat);
@@ -119,7 +115,6 @@ function App() {
     socket.on('roomUpdate', (room: Room) => {
       console.log('Room updated:', room);
       
-      // Update game state and players for everyone else
       setGameState(room.gameState);
       setPlayers(room.players);
       setChatMessages(room.chat);
