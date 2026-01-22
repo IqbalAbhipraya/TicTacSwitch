@@ -17,7 +17,7 @@ const io = new Server(httpServer, {
     },
 });
 
-interface Room {
+export interface Room {
     id: string;
     gameState: GameState;
     chat: Chat[];
@@ -25,7 +25,7 @@ interface Room {
         X: {id: string, name: string} | null;
         O: {id: string, name: string} | null;
     }
-    spectators: string[];
+    spectators: {id: string, name: string}[];
 }
 
 const rooms = new Map<string, Room>();
@@ -64,7 +64,8 @@ io.on('connection', (socket: Socket) => {
 
         const systemMessage: Chat = {
             id: Date.now().toString(),
-            sender: 'X',
+            sender: 'System',
+            role: 'System',
             message: 'Welcome to the game!',
             timestamp: new Date(),
         };
@@ -92,10 +93,21 @@ io.on('connection', (socket: Socket) => {
             return;
         }
 
+
         // Join room as spectator if player O is not null (Filled)
-        if (room.players.O !== null) {
-            room.spectators.push(socket.id);
+        if (room.players.O !== null && room.players.X !== null) {
+            room.spectators.push({id: socket.id, name: playerName});
             socket.join(roomId);
+            
+            const systemMessage: Chat = {
+                id: Date.now().toString(),
+                sender: 'System',
+                role: 'System',
+                message: `${playerName} joined the room as Spectator`,
+                timestamp: new Date(),
+            };
+            room.chat.push(systemMessage);
+            
             callback({
                 success: true,
                 playerRole: null,
@@ -108,8 +120,10 @@ io.on('connection', (socket: Socket) => {
             return
         }
 
-        // Join room as player O
-        room.players.O = {
+        // Determine which role is missing and assign the player
+        const roleMissing: Player = room.players.X === null ? 'X' : 'O';
+
+        room.players[roleMissing] = {
             id: socket.id,
             name: playerName,
         };
@@ -117,8 +131,9 @@ io.on('connection', (socket: Socket) => {
 
         const systemMessage: Chat = {
             id: Date.now().toString(),
-            sender: 'O',
-            message: `${playerName} joined the room`,
+            sender: 'System',
+            role: 'System',
+            message: `${playerName} joined the room as Player ${roleMissing}`,
             timestamp: new Date(),
         };
         room.chat.push(systemMessage);
@@ -126,12 +141,11 @@ io.on('connection', (socket: Socket) => {
         callback({
             success: true,
             roomId,
-            playerRole: 'O' as Player,
+            playerRole: roleMissing,
             room,
         });
 
         io.to(roomId).emit('gameStart', room);
-        io.to(roomId).emit('chatMessage', systemMessage);
         
         console.log(`Player ${playerName} joined room ${roomId}`);
     });
@@ -175,7 +189,8 @@ io.on('connection', (socket: Socket) => {
         if (room.gameState.winner) {
             const statusMessage: Chat = {
                 id: Date.now().toString(),
-                sender: playerRole,
+                sender: 'System',
+                role: 'System',
                 message: getGameStatus(room.gameState),
                 timestamp: new Date()
             };
@@ -198,7 +213,8 @@ io.on('connection', (socket: Socket) => {
         
         const systemMessage: Chat = {
             id: Date.now().toString(),
-            sender: playerRole,
+            sender: 'System',
+            role: 'System',
             message: 'Game reset',
             timestamp: new Date()
         };
@@ -206,6 +222,43 @@ io.on('connection', (socket: Socket) => {
         io.to(roomId).emit('chatMessage', systemMessage);
         io.to(roomId).emit('gameStateUpdate', room.gameState);
     });
+
+    socket.on('sendMessage', (roomId: string, message: string) => {
+        const room = rooms.get(roomId);
+        if (!room) {
+            return;
+        }
+
+        let playerRole: Player | 'Spectator' | null = getPlayerRole(room, socket.id);
+        let senderName: string;
+
+        if (playerRole) {
+            // Player sending message - use their name
+            senderName = room.players[playerRole]?.name || playerRole;
+        } else {
+            // Spectator sending message
+            const spectator = room.spectators.find(s => s.id === socket.id);
+            if (spectator) {
+                senderName = spectator.name;
+                playerRole = 'Spectator';
+            } else {
+                // Unknown sender
+                return;
+            }
+        }
+
+        const chatMessage: Chat = {
+            id: Date.now().toString(),
+            sender: senderName,
+            role: playerRole,
+            message: message,
+            timestamp: new Date()
+        };
+
+        room.chat.push(chatMessage);
+        io.to(roomId).emit('chatMessage', chatMessage);
+    });
+
 
     socket.on('leaveRoom', (roomId: string) => {
         const room = rooms.get(roomId);
@@ -219,7 +272,8 @@ io.on('connection', (socket: Socket) => {
 
             const systemMessage: Chat = {
                 id: Date.now().toString(),
-                sender: playerRole,
+                sender: 'System',
+                role: 'System',
                 message: `${playerName} left the room`,
                 timestamp: new Date()
             };
@@ -227,11 +281,85 @@ io.on('connection', (socket: Socket) => {
 
             io.to(roomId).emit('chatMessage', systemMessage);
             io.to(roomId).emit('playerLeft', {playerName, playerRole});
+
+            if (room.spectators.length > 0) {
+                const spectator = room.spectators[0]!;
+                let newRole: Player | null = null;
+                
+                if (room.players.X === null) {
+                    room.players.X = spectator;
+                    newRole = 'X';
+                    room.spectators = room.spectators.filter(s => s.id !== spectator.id);
+                } else if (room.players.O === null) {
+                    room.players.O = spectator;
+                    newRole = 'O';
+                    room.spectators = room.spectators.filter(s => s.id !== spectator.id);
+                }
+                
+                if (newRole) {
+                    io.to(spectator.id).emit('becomePlayer', { room, role: newRole });
+                    
+                    io.to(roomId).emit('roomUpdate', room);
+                    
+                    const systemMessage: Chat = {
+                        id: Date.now().toString(),
+                        sender: 'System',
+                        role: 'System',
+                        message: `${spectator.name} became Player ${newRole}`,
+                        timestamp: new Date()
+                    };
+                    room.chat.push(systemMessage);
+                    io.to(roomId).emit('chatMessage', systemMessage);
+                }
+            }
         } else {
-            room.spectators = room.spectators.filter(id => id !== socket.id);
+            const spectator = room.spectators.find(s => s.id === socket.id) || null;
+            const playerName = spectator?.name || 'Unknown';
+            room.spectators = room.spectators.filter(s => s.id !== socket.id);
+            const systemMessage: Chat = {
+                id: Date.now().toString(),
+                sender: 'System',
+                role: 'System',
+                message: `${playerName} left the room`,
+                timestamp: new Date()
+            };
+            room.chat.push(systemMessage);
+
+            io.to(roomId).emit('chatMessage', systemMessage);
         }
 
         socket.leave(roomId);
+    });
+
+    socket.on('switchRole', (roomId: string) => {
+        const room = rooms.get(roomId);
+        if (!room) {
+            return;
+        }
+        const playerRole = getPlayerRole(room, socket.id);
+        if (!playerRole) {
+            return;
+        }
+        
+        const playerXName = room.players.X?.name || 'Unknown';
+        const playerOName = room.players.O?.name || 'Unknown';
+        
+        const tempX = room.players.X;
+        room.players.X = room.players.O;
+        room.players.O = tempX;
+        
+        room.gameState = resetGame();
+        
+        const systemMessage: Chat = {
+            id: Date.now().toString(),
+            sender: 'System',
+            role: 'System',
+            message: `${playerXName} and ${playerOName} switched roles!`,
+            timestamp: new Date()
+        };
+        room.chat.push(systemMessage);
+        
+        io.to(roomId).emit('roleSwitch', room);
     });
 
     socket.on('disconnect', () => {
@@ -245,6 +373,7 @@ io.on('connection', (socket: Socket) => {
                 const systemMessage: Chat = {
                     id: Date.now().toString(),
                     sender: playerRole,
+                    role: playerRole,
                     message: `${playerName} left the room`,
                     timestamp: new Date()
                 };
@@ -258,7 +387,7 @@ io.on('connection', (socket: Socket) => {
                     console.log(`Room ${roomId} deleted`);
                 }
             } else {
-                room.spectators = room.spectators.filter(id => id !== socket.id);
+                room.spectators = room.spectators.filter(s => s.id !== socket.id);
             }
         })
     });

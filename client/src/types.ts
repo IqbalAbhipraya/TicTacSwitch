@@ -13,7 +13,8 @@ export interface GameState {
 
 export interface Chat {
   id: string;
-  sender: Player;
+  sender: string;
+  role: Player | 'Spectator'| 'System';
   message: string;
   timestamp: Date;
 }
@@ -26,7 +27,7 @@ export interface Room {
     X: { id: string; name: string } | null;
     O: { id: string; name: string } | null;
   };
-  spectators: string[];
+  spectators: { id: string; name: string }[];
 }
 
 export interface CreateRoomResponse {

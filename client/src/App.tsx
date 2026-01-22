@@ -1,5 +1,3 @@
-// client/src/App.tsx
-
 import { useEffect, useState } from 'react';
 import './App.css';
 import { getSocket } from './socket';
@@ -11,6 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './com
 import { Input } from './components/ui/input';
 import { Button } from './components/ui/button';
 import { Label } from './components/ui/label';
+import { RefreshCw } from 'lucide-react';
+import ChatSection from './components/ChatSection';
+
 
 import type { Chat, CreateRoomResponse, GameState, JoinRoomResponse, MakeMoveResponse, Player, Room } from './types';
 
@@ -33,7 +34,6 @@ function App() {
   const [playerName, setPlayerName] = useState('');
   const [roomInput, setRoomInput] = useState('');
   const [chatMessages, setChatMessages] = useState<Chat[]>([]);
-  const [chatInput, setChatInput] = useState('');
   const [players, setPlayers] = useState<Room['players']>({ X: null, O: null });
   const [status, setStatus] = useState('Not connected');
 
@@ -87,6 +87,44 @@ function App() {
       console.log(`${name} joined as spectator`);
     });
 
+    socket.on('roleSwitch', (room: Room) => {
+      console.log('Roles switched!', room);
+      
+      // Update game state and players
+      setGameState(room.gameState);
+      setPlayers(room.players);
+      setChatMessages(room.chat);
+      
+      // Update my role based on the new room state
+      if (room.players.X?.id === socket.id) {
+        setMyRole('X');
+        setStatus(`Room ${roomId} - You are X`);
+      } else if (room.players.O?.id === socket.id) {
+        setMyRole('O');
+        setStatus(`Room ${roomId} - You are O`);
+      }
+    });
+
+    socket.on('becomePlayer', ({ room, role }: { room: Room; role: Player }) => {
+      console.log('You became a player!', room, role);
+      
+      // Update game state and players
+      setGameState(room.gameState);
+      setPlayers(room.players);
+      setChatMessages(room.chat);
+      setMyRole(role);
+      setStatus(`Room ${roomId} - You are ${role}`);
+    });
+
+    socket.on('roomUpdate', (room: Room) => {
+      console.log('Room updated:', room);
+      
+      // Update game state and players for everyone else
+      setGameState(room.gameState);
+      setPlayers(room.players);
+      setChatMessages(room.chat);
+    });
+
     return () => {
       socket.off('connect');
       socket.off('disconnect');
@@ -96,6 +134,9 @@ function App() {
       socket.off('chatMessage');
       socket.off('playerLeft');
       socket.off('spectatorJoined');
+      socket.off('roleSwitch');
+      socket.off('becomePlayer');
+      socket.off('roomUpdate');
     };
   }, [socket, roomId]);
 
@@ -159,11 +200,10 @@ function App() {
     });
   };
 
-  const sendMessage = () => {
-    if (!chatInput.trim() || !roomId) return;
+  const sendMessage = (message: string) => {
+    if (!message.trim() || !roomId) return;
     
-    socket.emit('sendMessage', roomId, chatInput);
-    setChatInput('');
+    socket.emit('sendMessage', roomId, message);
   };
 
   const resetGame = () => {
@@ -171,7 +211,20 @@ function App() {
     socket.emit('resetGame', roomId);
   };
 
+  const switchRole = () => {
+    if (!roomId || !myRole) return;
+    if (players.X === null || players.O === null) {
+      alert('Cannot switch role: not enough players');
+      return;
+    }
+    socket.emit('switchRole', roomId);
+  };
+
   const leaveRoom = () => {    
+    if (roomId) {
+      socket.emit('leaveRoom', roomId);
+    }
+    
     // Reset state
     setRoomId('');
     setMyRole(null);
@@ -276,24 +329,28 @@ function App() {
         </div>
       ) : (
         /* Game Room */
-        <div className="flex flex-col lg:flex-row items-center justify-center min-h-screen gap-8 lg:gap-16">
-          <PlayerCard room={room} role="X" />
-          
-          <div className="flex flex-col items-center justify-center gap-4">
+          <div className="flex flex-col lg:flex-row items-center justify-center min-h-screen gap-8 lg:gap-16">
+            <div className="flex lg:flex-col flex-row items-center justify-center gap-4">
+              <PlayerCard room={room} role="X" />
+              <h1 className='text-2xl font-bold'>VS</h1>
+              <PlayerCard room={room} role="O" />
+            </div>
 
-            <h1 className='text-2xl font-bold'>{status}</h1>
+            <div className="flex flex-col items-center justify-center gap-4">
+              <h1 className='text-2xl font-bold'>{status}</h1>
 
-            <button onClick={leaveRoom} className="bg-red-500 text-white px-4 py-1 rounded-lg text-sm font-semibold hover:bg-red-600">Leave Room</button>
+              <button onClick={leaveRoom} className="bg-red-500 text-white px-4 py-1 rounded-lg text-sm font-semibold hover:bg-red-600">Leave Room</button>
 
-            <BadgeWithIndicator text={`Player ${gameState.currentPlayer}'s turn`} indicatorColor={indicatorColor}/>
-            
-            <Board gameState={gameState} onSquareClick={onSquareClick} myRole={myRole}/>
-            {gameState.winner && <Badge text={`Winner is ${gameState.winner}`} />}
-            {myRole && <button onClick={resetGame} className="mt-4 bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-gray-700">Reset Game</button>}
+              <BadgeWithIndicator text={gameState.winner ? `Player ${gameState.winner} wins!` : `Player ${gameState.currentPlayer}'s turn`} indicatorColor={gameState.winner ? 'yellow' : indicatorColor}/>
+              
+              <Board gameState={gameState} onSquareClick={onSquareClick} myRole={myRole}/>
+              {myRole && <button onClick={resetGame} className="mt-4 bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-gray-700">Reset Game</button>}
+            </div>
+            <div className="flex flex-col items-center justify-center gap-4">
+              {myRole && <button onClick={switchRole} className="mt-4 bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-gray-700 flex items-center gap-2"><RefreshCw size={25} strokeWidth={2.5} /> Switch Role</button>}
+              <ChatSection messages={chatMessages} onSendMessage={sendMessage} disabled={!roomId} />            
+            </div>
           </div>
-          
-          <PlayerCard room={room} role="O" />
-        </div>
       )}
     </div>
   );

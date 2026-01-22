@@ -136,7 +136,7 @@ export function getGameStatus(gameState: GameState): string {
         return "It's a draw!";
     }
     if (gameState.winner) {
-        return `Player ${gameState.winner} wins!`;
+        return `Player ${gameState.winner} wins! 🎉`;
     }
     return `Player ${gameState.currentPlayer}'s turn`;
 }

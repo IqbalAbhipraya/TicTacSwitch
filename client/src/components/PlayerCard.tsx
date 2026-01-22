@@ -1,6 +1,6 @@
 import Badge from "./Badge"
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card"
-import type { GameState, Player, Room } from "../types"
+import type { Room } from "../types"
 import { Crown } from "lucide-react"
 
 interface PlayerCardProps {
@@ -33,15 +33,15 @@ export const PlayerCard = ({ room, role }: PlayerCardProps) => {
                     }}
                 />
             )}
-            <Card className="w-64 h-[10rem] flex flex-col justify-between">
+            <Card className={`w-64 h-[10rem] flex flex-col justify-between ${isMyTurn && !winner ? 'border-4 border-green-500' : ''} ${winner && winner === role ? 'border-4 border-yellow-500' : ''}`}>
                 <CardHeader className="flex-1 flex flex-col justify-center">
                     <CardTitle className="text-xl font-bold">{name}</CardTitle>
                     <CardDescription>
-                        Moves: {moves}
+                            Player {role}
                     </CardDescription>
                 </CardHeader>
                 <CardFooter>
-                    {isMyTurn ? (<Badge text={isMyTurn ? 'Your Turn' : 'Opponent Turn'}/>) : ('')}
+                  
                 </CardFooter>
             </Card>
         </div>

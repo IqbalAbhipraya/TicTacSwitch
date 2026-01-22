@@ -11,7 +11,8 @@ export interface GameState {
 
 export interface Chat {
     id: string;
-    sender: Player;
+    sender: string;
+    role: Player | 'Spectator'| 'System';
     message: string;
     timestamp: Date;
 }
